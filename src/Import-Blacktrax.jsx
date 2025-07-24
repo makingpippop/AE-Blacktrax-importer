@@ -30,10 +30,17 @@ function parse_csv(file) {
     var tracking_duration = capture_num_frames / capture_fps; // Calculate the duration in seconds
     //alert("Capture Date: " + formated_date + "\nNumber of Frames: " + capture_num_frames);
 
-    //create AE composition
-    var ae_comp = create_comp(tracking_name, formated_date, capture_num_frames, capture_fps, tracking_duration);
-    if(!ae_comp)
-        return
+    //Validate AE
+    var ae_comp_name = formated_date+"_"+tracking_name+"_BTX-capture";
+    //check if comp item exists
+    for (var i = 1; i <= app.project.numItems; i++) {
+        if (app.project.item(i) instanceof CompItem && app.project.item(i).name === ae_comp_name) {
+            alert("Composition with name '" + ae_comp_name + "' already exists.");
+            return null;
+        }
+    }
+
+
 
     //get the markers
     var first_data_row = rows[DATA_START_ROW];
@@ -53,18 +60,10 @@ function parse_csv(file) {
             m_name = marker_name_row[i];
             //-check if the marker name is already in the markers object
             if (markers[m_name] === undefined) {
-                //-create marker layer
-                var marker_layer = ae_comp.layers.addNull(tracking_duration);
-                marker_layer.label = i%16;
-                marker_layer.transform.scale.setValue([1, 1]);
-
-                marker_layer.name = m_name;
-
                 markers[m_name] = {
                     "cols"      : cols,
                     "positions" : [],
-                    "times"    : [], // This will hold the time values for each position
-                    "layer"     : marker_layer
+                    "times"    : [] // This will hold the time values for each position
                 };
 
 
@@ -82,8 +81,10 @@ function parse_csv(file) {
 
 
     //go through the position data
-    //var times = [];
-    
+    //-min and max x and y values for composition width and height
+    var min_x = Infinity, max_x = -Infinity;
+    var min_y = Infinity, max_y = -Infinity;
+
     for(var i = DATA_START_ROW; i < rows.length-1; i++) {
         var row = rows[i].split(",");
         frame = parseInt(row[0]);
@@ -106,6 +107,12 @@ function parse_csv(file) {
             markers[m]["positions"].push([x, y, z]);
             markers[m]["times"].push(time);
 
+            //-check for min and max values
+            if (x < min_x) min_x = x;
+            if (x > max_x) max_x = x;
+            if (y < min_y) min_y = y;
+            if (y > max_y) max_y = y;
+
             //alert("Frame: " + frame + "\nMarker: " + m + "\n X: " + x + ", Y: " + y + ", Z: " + z);
            
         }
@@ -113,14 +120,44 @@ function parse_csv(file) {
 
     }
 
+    
+    var comp_size = [max_x - min_x, max_y - min_y];
+    //alert("Composition Size: " + comp_size[0] + "x" + comp_size[1] + "\nTracking Name: " + tracking_name + "\nCapture Date: " + formated_date + "\nNumber of Frames: " + capture_num_frames + "\nCapture FPS: " + capture_fps + "\nTracking Duration: " + tracking_duration);
+    //-create AE composition
+    //var ae_comp = create_comp(comp_size, tracking_name, formated_date, capture_num_frames, capture_fps, tracking_duration);
+    var ae_comp = app.project.items.addComp(
+                                                ae_comp_name,
+                                                Math.ceil(comp_size[0]), //comp_width
+                                                Math.ceil(comp_size[1]), //comp_height
+                                                1.0,
+                                                tracking_duration,
+                                                capture_fps
+                                            );
+    if(!ae_comp)
+        return
+
     //apply the markers keyframes
+    var marker_id   = 0; 
     for(var m in markers) {
         var marker      = markers[m];
-        var layer       = marker.layer;
         var positions   = marker.positions;
         var times       = marker.times;
-    
-        layer.transform.position.setValuesAtTimes(times, positions);
+
+
+        //-create marker layer
+        var marker_layer = ae_comp.layers.addNull(tracking_duration);
+        marker_layer.label = (marker_id%16) + 1;
+        marker_layer.transform.scale.setValue([1, 1]);
+        marker_layer.name = m;
+        //center position based on min_x and min_y
+        var offseted_position = [];
+        for (var i = 0; i < positions.length; i++) {
+            var pos = positions[i];
+            offseted_position.push([pos[0] - min_x, pos[1] - min_y, pos[2]]);
+        }
+
+        marker_layer.transform.position.setValuesAtTimes(times, offseted_position);
+        marker_id++;
   
     }
 
@@ -128,18 +165,12 @@ function parse_csv(file) {
 
 }
 
-function create_comp(tracking_name, date, num_frames, capture_fps, duration) {
+function create_comp(comp_size, tracking_name, date, num_frames, capture_fps, duration) {
     var comp_name = date+"_"+tracking_name+"_BTX-capture";
-    //check if comp item exists
-    for (var i = 1; i <= app.project.numItems; i++) {
-        if (app.project.item(i) instanceof CompItem && app.project.item(i).name === comp_name) {
-            alert("Composition with name '" + comp_name + "' already exists.");
-            return null;
-        }
-    }
+    
 
-    var comp_width = 100;
-    var comp_height = 100;
+    var comp_width = comp_size[0];
+    var comp_height = comp_size[1];
    
     var comp = app.project.items.addComp(comp_name, comp_width, comp_height, 1.0, duration, capture_fps);
     return comp;
