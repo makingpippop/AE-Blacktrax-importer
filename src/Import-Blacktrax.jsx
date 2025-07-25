@@ -5,6 +5,8 @@ DATA_HEADER_ROW = 6; // The row where the header is located in the CSV file
 DATA_START_ROW = 7
 NUM_MARKERS_PER_TRACKER = 3;
 MARKER_NAME_ROW = 3;
+//AE
+BTX_LAYER_NAME = "BlackTrax Data";
 
 
 function main() {
@@ -135,8 +137,27 @@ function parse_csv(file) {
                                             );
     if(!ae_comp)
         return
+    //create the layer that will hold the markers
+    var btx_data_layer = ae_comp.layers.addNull(tracking_duration);
+    btx_data_layer.label = 0; // Set label to None
+    btx_data_layer.transform.scale.setValue([1, 1]);
+    btx_data_layer.name = "BlackTrax Data";
 
-    //apply the markers keyframes
+    var remap_property = btx_data_layer.property("Effects").addProperty("ADBE Point Control")
+    remap_property.name = "BTX_Remap";
+    remap_property.property("Point").setValue([comp_size[0], comp_size[1]]); // Set the default value to the composition size
+    
+    var offset_property = btx_data_layer.property("Effects").addProperty("ADBE Point Control")
+    offset_property.name = "BTX_Offset";
+    offset_property.property("Point").setValue([0, 0]); // Set the default value to the minimum x and y values
+    
+    
+    //create the control layer
+    // var control_layer = ae_comp.layers.addNull(tracking_duration);
+    // control_layer.label = 0;
+    // control_layer.transform.scale.setValue([1, 1]);
+    // control_layer.name = "REMAP VALUES USING THE SIZE OF THE COMPOSITION";
+    // //apply the markers keyframes
     var marker_id   = 0; 
     for(var m in markers) {
         var marker      = markers[m];
@@ -144,23 +165,46 @@ function parse_csv(file) {
         var times       = marker.times;
 
 
-        //-create marker layer
+        //-create marker layer and link to the position data
         var marker_layer = ae_comp.layers.addNull(tracking_duration);
         marker_layer.label = (marker_id%16) + 1;
-        marker_layer.transform.scale.setValue([1, 1]);
         marker_layer.name = m;
+        marker_layer.transform.scale.setValue([1, 1]);
+
+        marker_layer.transform.position.expression = 'thisComp.layer("'+BTX_LAYER_NAME+'").effect("'+m+'")("Point")'
+        marker_layer.transform.position.enableExpression = true;
+
+        //-create expression controllers for every marker
+        var coord_property = btx_data_layer.property("Effects").addProperty("ADBE Point Control")
+        coord_property.name = m
+
+        coord_property.property("Point").expression = 'var p = effect("'+m+'")(1); var s = effect("BTX_Remap")(1);var o = effect("BTX_Offset")(1); [(p[0]*s[0])+o[0], (p[1]*s[1])+o[1]]'
+        coord_property.property("Point").enableExpression = true;
+
         //center position based on min_x and min_y
         var offseted_position = [];
         for (var i = 0; i < positions.length; i++) {
             var pos = positions[i];
-            offseted_position.push([pos[0] - min_x, pos[1] - min_y, pos[2]]);
+            //-remap the position vlues to 0 to 1
+            var norm_x = (pos[0] - min_x) / (max_x - min_x);
+            var norm_y = (pos[1] - min_y) / (max_y - min_y);
+            //-remap to composition size (THE REMAPPING IS DONE IN EXPRESSION)
+            var x = norm_x * comp_size[0];
+            var y = norm_y * comp_size[1];
+            x = norm_x;
+            y = norm_y;
+            //-apply the new pos
+            offseted_position.push([x,y]);
+            
         }
 
-        marker_layer.transform.position.setValuesAtTimes(times, offseted_position);
+        //marker_layer.transform.position.setValuesAtTimes(times, offseted_position);
+        coord_property.property("Point").setValuesAtTimes(times, offseted_position);
         marker_id++;
   
     }
-
+    //move the blacktrax data layer to the top of the layer stack
+    ae_comp.layers.byName(BTX_LAYER_NAME).moveToBeginning();
     file.close();
 
 }
