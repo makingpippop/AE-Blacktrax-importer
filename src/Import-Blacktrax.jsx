@@ -53,7 +53,7 @@ function parse_csv(file) {
     for (var i = FIRST_TRACKER_COL; i < data_cols.length; i+= NUM_MARKERS_PER_TRACKER) {
         if (data_cols[i] !== "") {
             //create array of length NUM_MARKERS_PER_TRACKER
-            var cols = new Array(NUM_MARKERS_PER_TRACKER).fill(0); // Initialize an array with zeros
+            var cols = new Array(NUM_MARKERS_PER_TRACKER); // Initialize an array with zeros
          
             for (var j = 0; j < NUM_MARKERS_PER_TRACKER; j++) {
                 cols[j] = i + j; // Assign the column index for each marker
