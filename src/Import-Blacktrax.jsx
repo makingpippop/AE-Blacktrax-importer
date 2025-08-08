@@ -122,7 +122,8 @@ function parse_csv(file) {
 
     }
 
-    
+    //alert("The minimum X value is: " + min_x + "\nThe maximum X value is: " + max_x + "\nThe minimum Y value is: " + min_y + "\nThe maximum Y value is: " + max_y);
+    //return
     var comp_size = [max_x - min_x, max_y - min_y];
     //alert("Composition Size: " + comp_size[0] + "x" + comp_size[1] + "\nTracking Name: " + tracking_name + "\nCapture Date: " + formated_date + "\nNumber of Frames: " + capture_num_frames + "\nCapture FPS: " + capture_fps + "\nTracking Duration: " + tracking_duration);
     //-create AE composition
